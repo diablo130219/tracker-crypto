@@ -75,24 +75,34 @@ def read_trades(limit=None):
 def calc_stats():
     trades = list(reversed(read_trades()))
     bankroll = STARTING_BANKROLL
-    curve = []
+    curve = [{"date": "start", "bankroll": round(bankroll, 2), "pnl": 0, "symbol": "START"}]
     wins = losses = 0
     pnl_total = 0.0
+    open_count = 0
+    closed_count = 0
 
     for t in trades:
+        status = str(t.get("status") or "").lower()
         pnl = float(t.get("pnl") or 0)
-        pnl_total += pnl
-        bankroll += pnl
-        if pnl > 0:
-            wins += 1
-        elif pnl < 0:
-            losses += 1
-        curve.append({
-            "date": t["created_at"][:10],
-            "bankroll": round(bankroll, 2),
-            "pnl": round(pnl, 2),
-            "symbol": t["symbol"],
-        })
+
+        if status == "open":
+            open_count += 1
+            continue
+
+        if status == "closed":
+            closed_count += 1
+            pnl_total += pnl
+            bankroll += pnl
+            if pnl > 0:
+                wins += 1
+            elif pnl < 0:
+                losses += 1
+            curve.append({
+                "date": t["created_at"][:10],
+                "bankroll": round(bankroll, 2),
+                "pnl": round(pnl, 2),
+                "symbol": t["symbol"],
+            })
 
     closed = wins + losses
     return {
@@ -101,6 +111,8 @@ def calc_stats():
         "pnl_total": round(pnl_total, 2),
         "roi": round((pnl_total / STARTING_BANKROLL * 100), 2) if STARTING_BANKROLL else 0,
         "trades_count": len(trades),
+        "open_count": open_count,
+        "closed_count": closed_count,
         "wins": wins,
         "losses": losses,
         "winrate": round((wins / closed * 100), 1) if closed else 0,
@@ -134,7 +146,10 @@ def logout():
 @app.route("/")
 @require_login
 def dashboard():
-    return render_template("dashboard.html", stats=calc_stats(), trades=read_trades(80))
+    trades = read_trades(120)
+    open_trades = [t for t in trades if str(t.get("status") or "").lower() == "open"]
+    closed_trades = [t for t in trades if str(t.get("status") or "").lower() == "closed"]
+    return render_template("dashboard.html", stats=calc_stats(), trades=trades, open_trades=open_trades, closed_trades=closed_trades)
 
 
 @app.route("/api/stats")
@@ -163,7 +178,7 @@ def api_trade():
         "amount": float(data.get("amount") or 0),
         "pnl": float(data.get("pnl") or data.get("profit") or 0),
         "score": float(data.get("score") or 0),
-        "status": str(data.get("status") or "signal"),
+        "status": str(data.get("status") or "open"),
         "source": str(data.get("source") or "telegram"),
         "notes": str(data.get("notes") or ""),
     }
@@ -203,6 +218,26 @@ def add_manual():
             VALUES (:created_at, :symbol, :side, :entry, :exit, :amount, :pnl, :score, :status, :source, :notes)
             """,
             values,
+        )
+        conn.commit()
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/close/<int:trade_id>", methods=["POST"])
+@require_login
+def close_trade(trade_id):
+    exit_price = float(request.form.get("exit") or 0)
+    pnl = float(request.form.get("pnl") or 0)
+    notes_extra = request.form.get("notes") or ""
+    with db() as conn:
+        row = conn.execute("SELECT notes FROM trades WHERE id = ?", (trade_id,)).fetchone()
+        old_notes = row["notes"] if row else ""
+        notes = old_notes
+        if notes_extra:
+            notes = (old_notes + " | " if old_notes else "") + notes_extra
+        conn.execute(
+            "UPDATE trades SET exit = ?, pnl = ?, status = 'closed', notes = ? WHERE id = ?",
+            (exit_price, pnl, notes, trade_id),
         )
         conn.commit()
     return redirect(url_for("dashboard"))

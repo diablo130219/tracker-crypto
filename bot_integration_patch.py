@@ -1,8 +1,7 @@
-# PEZZO DA AGGIUNGERE AL TUO bot.py
-# 1) aggiungi: import requests
-# 2) aggiungi le due variabili sotto TELEGRAM_CHAT_ID
-# 3) aggiungi la funzione send_to_tracker
-# 4) richiama send_to_tracker(symbol, result) dopo l'invio del messaggio Telegram
+# PATCH BOT TELEGRAM -> TRACKER
+# Aggiungi questo al tuo bot.py.
+# Poi chiama send_to_tracker(symbol, result) subito dopo send_message(...)
+# nel punto in cui il bot manda il segnale Telegram.
 
 import os
 import requests
@@ -19,14 +18,14 @@ def send_to_tracker(symbol, result):
             json={
                 "token": TRACKER_API_TOKEN,
                 "symbol": symbol,
-                "signal": result.get("signal"),
-                "price": result.get("price"),
+                "signal": result.get("signal") or result.get("side"),
+                "price": result.get("price") or result.get("entry"),
                 "score": result.get("score"),
-                "status": "signal",
+                "status": "open",
                 "source": "telegram",
                 "notes": "Segnale automatico dal bot Telegram"
             },
             timeout=10
         )
     except Exception as e:
-        logger.warning(f"Tracker non raggiungibile: {e}")
+        print(f"Tracker non raggiungibile: {e}")

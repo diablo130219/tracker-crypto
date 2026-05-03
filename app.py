@@ -40,7 +40,7 @@ def init_db():
                 amount REAL DEFAULT 0,
                 pnl REAL DEFAULT 0,
                 score REAL,
-                status TEXT DEFAULT 'signal',
+                status TEXT DEFAULT 'open',
                 source TEXT DEFAULT 'telegram',
                 notes TEXT DEFAULT ''
             )
@@ -51,6 +51,15 @@ def init_db():
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def to_float(value, default=0.0):
+    try:
+        if value is None or value == "":
+            return default
+        return float(str(value).replace(",", "."))
+    except Exception:
+        return default
 
 
 def require_login(func):
@@ -80,19 +89,21 @@ def calc_stats():
     pnl_total = 0.0
     open_count = 0
     closed_count = 0
+    best = 0.0
+    worst = 0.0
 
     for t in trades:
         status = str(t.get("status") or "").lower()
         pnl = float(t.get("pnl") or 0)
-
         if status == "open":
             open_count += 1
             continue
-
         if status == "closed":
             closed_count += 1
             pnl_total += pnl
             bankroll += pnl
+            best = max(best, pnl)
+            worst = min(worst, pnl)
             if pnl > 0:
                 wins += 1
             elif pnl < 0:
@@ -115,6 +126,8 @@ def calc_stats():
         "closed_count": closed_count,
         "wins": wins,
         "losses": losses,
+        "best": round(best, 2),
+        "worst": round(worst, 2),
         "winrate": round((wins / closed * 100), 1) if closed else 0,
         "currency": CURRENCY,
         "curve": curve,
@@ -124,6 +137,11 @@ def calc_stats():
 @app.before_request
 def setup():
     init_db()
+
+
+@app.route("/healthz")
+def healthz():
+    return "OK", 200
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -146,7 +164,7 @@ def logout():
 @app.route("/")
 @require_login
 def dashboard():
-    trades = read_trades(120)
+    trades = read_trades(180)
     open_trades = [t for t in trades if str(t.get("status") or "").lower() == "open"]
     closed_trades = [t for t in trades if str(t.get("status") or "").lower() == "closed"]
     return render_template("dashboard.html", stats=calc_stats(), trades=trades, open_trades=open_trades, closed_trades=closed_trades)
@@ -173,12 +191,12 @@ def api_trade():
         "created_at": data.get("created_at") or now_iso(),
         "symbol": symbol,
         "side": side,
-        "entry": float(data.get("entry") or data.get("price") or 0),
-        "exit": float(data.get("exit") or 0),
-        "amount": float(data.get("amount") or 0),
-        "pnl": float(data.get("pnl") or data.get("profit") or 0),
-        "score": float(data.get("score") or 0),
-        "status": str(data.get("status") or "open"),
+        "entry": to_float(data.get("entry") or data.get("price")),
+        "exit": to_float(data.get("exit")),
+        "amount": to_float(data.get("amount")),
+        "pnl": to_float(data.get("pnl") or data.get("profit")),
+        "score": to_float(data.get("score")),
+        "status": str(data.get("status") or "open").lower(),
         "source": str(data.get("source") or "telegram"),
         "notes": str(data.get("notes") or ""),
     }
@@ -202,11 +220,11 @@ def add_manual():
         "created_at": request.form.get("created_at") or now_iso(),
         "symbol": (request.form.get("symbol") or "MANUAL").upper(),
         "side": (request.form.get("side") or "MANUAL").upper(),
-        "entry": float(request.form.get("entry") or 0),
-        "exit": float(request.form.get("exit") or 0),
-        "amount": float(request.form.get("amount") or 0),
-        "pnl": float(request.form.get("pnl") or 0),
-        "score": float(request.form.get("score") or 0),
+        "entry": to_float(request.form.get("entry")),
+        "exit": to_float(request.form.get("exit")),
+        "amount": to_float(request.form.get("amount")),
+        "pnl": to_float(request.form.get("pnl")),
+        "score": to_float(request.form.get("score")),
         "status": request.form.get("status") or "closed",
         "source": "manual",
         "notes": request.form.get("notes") or "",
@@ -226,8 +244,8 @@ def add_manual():
 @app.route("/close/<int:trade_id>", methods=["POST"])
 @require_login
 def close_trade(trade_id):
-    exit_price = float(request.form.get("exit") or 0)
-    pnl = float(request.form.get("pnl") or 0)
+    exit_price = to_float(request.form.get("exit"))
+    pnl = to_float(request.form.get("pnl"))
     notes_extra = request.form.get("notes") or ""
     with db() as conn:
         row = conn.execute("SELECT notes FROM trades WHERE id = ?", (trade_id,)).fetchone()

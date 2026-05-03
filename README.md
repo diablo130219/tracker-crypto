@@ -1,86 +1,38 @@
-# Crypto Bankroll Tracker
+# Crypto Bankroll Tracker V3
 
-Tracker online leggero per Render, separato dal bot Telegram.
+Dashboard online per Render con:
 
-## Variabili ambiente Render
+- segnali automatici dal bot Telegram tramite `/api/trade`
+- trade aperti visibili in dashboard
+- chiusura manuale profit/loss per ogni trade aperto
+- bankroll aggiornato solo sui trade chiusi
+- storico completo
+- grafico andamento bankroll
+- endpoint `/healthz`
 
-Imposta queste variabili:
+## Variabili Render
 
-- `APP_SECRET` = password per accedere alla dashboard
-- `TRACKER_API_TOKEN` = token segreto usato dal bot Telegram per inviare dati
-- `STARTING_BANKROLL` = capitale iniziale, esempio `1000`
-- `CURRENCY` = valuta, esempio `EUR`
-
-## Deploy Render
-
-Build command:
-
-```bash
-pip install -r requirements.txt
+```txt
+APP_SECRET=la_password_dashboard
+TRACKER_API_TOKEN=token_segreto_api
+STARTING_BANKROLL=1000
+CURRENCY=EUR
 ```
 
-Start command:
+## Build / Start
 
-```bash
-gunicorn app:app
+```txt
+Build Command: pip install -r requirements.txt
+Start Command: gunicorn app:app
 ```
 
-## Collegamento al bot Telegram
+## Bot Telegram
 
-Nel tuo `bot.py`, aggiungi questo import in alto:
+Nel servizio Render del bot aggiungi:
 
-```python
-import requests
+```txt
+TRACKER_URL=https://tracker-crypto.onrender.com
+TRACKER_API_TOKEN=lo_stesso_token_del_tracker
 ```
 
-Aggiungi queste variabili sotto quelle Telegram:
-
-```python
-TRACKER_URL = os.environ.get("TRACKER_URL", "")
-TRACKER_API_TOKEN = os.environ.get("TRACKER_API_TOKEN", "")
-```
-
-Aggiungi questa funzione:
-
-```python
-def send_to_tracker(symbol, result):
-    if not TRACKER_URL or not TRACKER_API_TOKEN:
-        return
-    try:
-        requests.post(
-            f"{TRACKER_URL.rstrip('/')}/api/trade",
-            json={
-                "token": TRACKER_API_TOKEN,
-                "symbol": symbol,
-                "signal": result.get("signal"),
-                "price": result.get("price"),
-                "score": result.get("score"),
-                "status": "signal",
-                "source": "telegram",
-                "notes": "Segnale automatico dal bot Telegram"
-            },
-            timeout=10
-        )
-    except Exception as e:
-        logger.warning(f"Tracker non raggiungibile: {e}")
-```
-
-Poi, subito dopo questa riga nel ciclo:
-
-```python
-await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=msg, parse_mode=ParseMode.MARKDOWN_V2)
-```
-
-aggiungi:
-
-```python
-send_to_tracker(symbol, result)
-```
-
-## Variabili da aggiungere al bot Telegram
-
-Nel servizio Render del bot Telegram aggiungi:
-
-- `TRACKER_URL` = URL del tracker, esempio `https://crypto-bankroll-tracker.onrender.com`
-- `TRACKER_API_TOKEN` = lo stesso token usato nel tracker
-
+Quando il bot invia BUY o SELL, crea un trade aperto. Lo chiudi manualmente dalla dashboard inserendo P/L positivo o negativo.

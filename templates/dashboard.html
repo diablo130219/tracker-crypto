@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crypto Bankroll Tracker</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div><h1>Crypto Bankroll Tracker</h1><p>Dashboard segnali, trade e andamento capitale</p></div>
+  <a class="logout" href="/logout">Esci</a>
+</header>
+
+<section class="grid cards">
+  <article class="card"><span>Bankroll attuale</span><strong>{{ stats.bankroll }} {{ stats.currency }}</strong></article>
+  <article class="card"><span>Profit/Loss totale</span><strong class="{{ 'pos' if stats.pnl_total >= 0 else 'neg' }}">{{ stats.pnl_total }} {{ stats.currency }}</strong></article>
+  <article class="card"><span>ROI</span><strong class="{{ 'pos' if stats.roi >= 0 else 'neg' }}">{{ stats.roi }}%</strong></article>
+  <article class="card"><span>Winrate</span><strong>{{ stats.winrate }}%</strong></article>
+</section>
+
+<section class="panel chart-panel">
+  <div class="panel-title"><h2>Andamento bankroll</h2><span>{{ stats.trades_count }} operazioni/segnali</span></div>
+  <canvas id="bankrollChart" height="90"></canvas>
+</section>
+
+<section class="grid two">
+  <article class="panel">
+    <div class="panel-title"><h2>Aggiungi operazione manuale</h2></div>
+    <form class="trade-form" method="post" action="/add">
+      <input name="symbol" placeholder="BTC/EUR" required>
+      <select name="side"><option>BUY</option><option>SELL</option><option>LONG</option><option>SHORT</option><option>MANUAL</option></select>
+      <input name="entry" type="number" step="0.000001" placeholder="Entrata">
+      <input name="exit" type="number" step="0.000001" placeholder="Uscita">
+      <input name="amount" type="number" step="0.01" placeholder="Importo">
+      <input name="pnl" type="number" step="0.01" placeholder="P/L es. 12.50 o -8">
+      <input name="score" type="number" step="0.1" placeholder="Score">
+      <select name="status"><option value="closed">closed</option><option value="open">open</option><option value="signal">signal</option></select>
+      <textarea name="notes" placeholder="Note"></textarea>
+      <button>Salva</button>
+    </form>
+  </article>
+
+  <article class="panel">
+    <div class="panel-title"><h2>Statistiche</h2></div>
+    <div class="stats-list">
+      <div><span>Capitale iniziale</span><b>{{ stats.starting_bankroll }} {{ stats.currency }}</b></div>
+      <div><span>Trade vincenti</span><b>{{ stats.wins }}</b></div>
+      <div><span>Trade perdenti</span><b>{{ stats.losses }}</b></div>
+      <div><span>Operazioni totali</span><b>{{ stats.trades_count }}</b></div>
+    </div>
+  </article>
+</section>
+
+<section class="panel">
+  <div class="panel-title"><h2>Storico</h2><span>Ultimi 80 record</span></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Data</th><th>Pair</th><th>Side</th><th>Entry</th><th>Exit</th><th>P/L</th><th>Score</th><th>Stato</th><th>Fonte</th><th></th></tr></thead>
+    <tbody>
+    {% for t in trades %}
+      <tr>
+        <td>{{ t.created_at[:16].replace('T',' ') }}</td><td>{{ t.symbol }}</td><td><span class="badge">{{ t.side }}</span></td>
+        <td>{{ t.entry }}</td><td>{{ t.exit }}</td><td class="{{ 'pos' if t.pnl >= 0 else 'neg' }}">{{ t.pnl }}</td><td>{{ t.score }}</td><td>{{ t.status }}</td><td>{{ t.source }}</td>
+        <td><form method="post" action="/delete/{{ t.id }}"><button class="mini" onclick="return confirm('Eliminare record?')">×</button></form></td>
+      </tr>
+    {% else %}<tr><td colspan="10" class="empty">Nessun dato ancora. Appena il bot chiama l'API o inserisci una trade manuale, apparirà qui.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+
+<script>
+const curve = {{ stats.curve|tojson }};
+const labels = curve.map((x, i) => x.date + ' #' + (i + 1));
+const data = curve.map(x => x.bankroll);
+new Chart(document.getElementById('bankrollChart'), {
+  type: 'line',
+  data: { labels, datasets: [{ label: 'Bankroll', data, tension: .35, fill: true }] },
+  options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false } } }
+});
+</script>
+</body></html>

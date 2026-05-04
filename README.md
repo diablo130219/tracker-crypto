@@ -1,16 +1,14 @@
-# Crypto Bankroll Tracker V3
+# CryptoNow Tracker V4
 
-Dashboard online per Render con:
+Versione coordinata con brand CryptoNow:
 
-- segnali automatici dal bot Telegram tramite `/api/trade`
-- trade aperti visibili in dashboard
-- chiusura manuale profit/loss per ogni trade aperto
-- bankroll aggiornato solo sui trade chiusi
-- storico completo
-- grafico andamento bankroll
+- header sito coordinato
+- icona manga CryptoNow animata via CSS
+- login brandizzato
+- dashboard V3 invariata: segnali automatici + chiusura manuale profit/loss
 - endpoint `/healthz`
 
-## Variabili Render
+## Variabili
 
 ```txt
 APP_SECRET=la_password_dashboard
@@ -19,20 +17,4 @@ STARTING_BANKROLL=1000
 CURRENCY=EUR
 ```
 
-## Build / Start
-
-```txt
-Build Command: pip install -r requirements.txt
-Start Command: gunicorn app:app
-```
-
-## Bot Telegram
-
-Nel servizio Render del bot aggiungi:
-
-```txt
-TRACKER_URL=https://tracker-crypto.onrender.com
-TRACKER_API_TOKEN=lo_stesso_token_del_tracker
-```
-
-Quando il bot invia BUY o SELL, crea un trade aperto. Lo chiudi manualmente dalla dashboard inserendo P/L positivo o negativo.
+Carica tutti i file nel repo `tracker-crypto` e fai deploy su Render.

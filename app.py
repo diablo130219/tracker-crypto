@@ -17,6 +17,7 @@ STARTING_BANKROLL = float(os.environ.get("STARTING_BANKROLL", "1000"))
 CURRENCY = os.environ.get("CURRENCY", "EUR")
 
 app = Flask(__name__)
+APP_BRAND = "CryptoNow"
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", APP_SECRET)
 
 
@@ -152,7 +153,7 @@ def login():
             session["logged_in"] = True
             return redirect(url_for("dashboard"))
         error = "Password errata"
-    return render_template("login.html", error=error)
+    return render_template("login.html", error=error, brand=APP_BRAND)
 
 
 @app.route("/logout")

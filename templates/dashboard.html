@@ -3,17 +3,41 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Crypto Bankroll Tracker V3</title>
+  <title>CryptoNow Tracker</title>
   <link rel="stylesheet" href="/static/style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-<header class="topbar">
-  <div class="brand">
-    <div class="logo">₿</div>
-    <div><h1>Crypto Bankroll Tracker</h1><p>V3 • entrata automatica dal bot + chiusura manuale profit/loss</p></div>
-  </div>
-  <a class="logout" href="/logout">Esci</a>
+<header class="site-header">
+  <nav class="brand-nav">
+    <div class="brand-left">
+      <img src="/static/cryptonow_icon.png" alt="CryptoNow" class="nav-icon animated-icon">
+      <div>
+        <h1>CryptoNow</h1>
+        <p>Traccia • Analizza • Guadagna</p>
+      </div>
+    </div>
+    <div class="brand-actions">
+      <span class="status-pill">Dashboard live</span>
+      <a class="logout" href="/logout">Esci</a>
+    </div>
+  </nav>
+
+  <section class="hero-brand">
+    <div class="hero-copy">
+      <span class="eyebrow">Crypto Bankroll Tracker</span>
+      <h2>Traccia. Analizza. <strong>Guadagna.</strong></h2>
+      <p>Segnali automatici dal bot Telegram, trade aperti e chiusura manuale profit/loss in una dashboard coordinata CryptoNow.</p>
+      <div class="hero-mini-stats">
+        <span>Bankroll <b>{{ stats.bankroll }} {{ stats.currency }}</b></span>
+        <span>Aperti <b>{{ stats.open_count }}</b></span>
+        <span>ROI <b>{{ stats.roi }}%</b></span>
+      </div>
+    </div>
+    <div class="hero-art">
+      <img src="/static/cryptonow_full.png" alt="CryptoNow manga crypto">
+    </div>
+  </section>
 </header>
 
 <section class="grid cards">

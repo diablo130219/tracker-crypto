@@ -442,3 +442,220 @@ input,select,textarea,.trade-meta div,.stats-list div{
   .ultra-glow{width:290px;height:290px;}
   .ultra-rings{width:310px;height:310px;}
 }
+
+
+/* === CryptoNow V8: fix scritta Guadagna, status non cliccabile, animazione disegno sempre attiva === */
+.status-pill{
+  cursor:default !important;
+  pointer-events:none !important;
+  background:rgba(255,255,255,.62) !important;
+  color:#168f88 !important;
+  border:1px solid rgba(57,215,200,.45) !important;
+  box-shadow:0 10px 24px rgba(57,215,200,.16), inset 0 1px 0 rgba(255,255,255,.75) !important;
+}
+.status-pill::before{
+  content:"";
+  display:inline-block;
+  width:8px;height:8px;
+  margin-right:7px;
+  border-radius:50%;
+  background:#35d6c8;
+  box-shadow:0 0 12px #35d6c8;
+  animation:liveDot 1.7s ease-in-out infinite;
+}
+@keyframes liveDot{0%,100%{opacity:.55;transform:scale(.82)}50%{opacity:1;transform:scale(1.16)}}
+
+/* Scritta GUADAGNA più pulita e leggibile */
+.hero-copy h2 strong{
+  display:block !important;
+  font-weight:1000 !important;
+  line-height:1.02 !important;
+  letter-spacing:-.045em !important;
+  padding-bottom:4px !important;
+  background:linear-gradient(90deg,#28c7bb 0%,#69d4ff 46%,#a99bff 100%) !important;
+  -webkit-background-clip:text !important;
+  background-clip:text !important;
+  -webkit-text-fill-color:transparent !important;
+  filter:drop-shadow(0 12px 18px rgba(57,215,200,.20)) !important;
+}
+
+/* Immagine/disegno: movimento visibile anche senza mouse */
+.hero-art img,
+.ultra-hero-img{
+  border-radius:44px !important;
+  transform-origin:center center !important;
+  animation:cryptoNowIdleFloat 4.6s ease-in-out infinite, cryptoNowSoftGlow 3.2s ease-in-out infinite alternate !important;
+  will-change:transform, filter, box-shadow !important;
+}
+@keyframes cryptoNowIdleFloat{
+  0%,100%{transform:translateY(0) rotate(-.35deg) scale(1)}
+  35%{transform:translateY(-15px) rotate(.45deg) scale(1.022)}
+  70%{transform:translateY(-6px) rotate(-.15deg) scale(1.01)}
+}
+@keyframes cryptoNowSoftGlow{
+  from{filter:saturate(1.08) brightness(1.04);box-shadow:0 28px 75px rgba(30,45,80,.22),0 0 0 10px rgba(255,255,255,.38),0 0 45px rgba(57,215,200,.20)}
+  to{filter:saturate(1.18) brightness(1.09);box-shadow:0 34px 88px rgba(30,45,80,.26),0 0 0 12px rgba(255,255,255,.48),0 0 70px rgba(57,215,200,.34),0 0 110px rgba(185,167,255,.22)}
+}
+
+/* Effetto luce che passa sul disegno */
+.ultra-hero-art::after,
+.hero-art::after{
+  content:"";
+  position:absolute;
+  inset:7% 8% 7% 8%;
+  border-radius:48px;
+  pointer-events:none;
+  background:linear-gradient(115deg,transparent 0 38%,rgba(255,255,255,.52) 48%,transparent 58% 100%);
+  transform:translateX(-145%) rotate(0.001deg);
+  animation:cryptoNowImageShine 6.2s ease-in-out infinite;
+  mix-blend-mode:screen;
+  opacity:.68;
+}
+@keyframes cryptoNowImageShine{
+  0%,54%{transform:translateX(-145%);opacity:0}
+  63%{opacity:.70}
+  82%,100%{transform:translateX(145%);opacity:0}
+}
+
+/* cornice più morbida e coerente */
+.hero-art,
+.ultra-hero-art{position:relative !important;}
+.hero-art img,
+.ultra-hero-img{
+  border:6px solid rgba(255,255,255,.96) !important;
+  outline:1px solid rgba(57,215,200,.20) !important;
+}
+
+@media(prefers-reduced-motion:reduce){
+  .hero-art img,.ultra-hero-img,.ultra-hero-art::after,.hero-art::after{animation:none!important;}
+}
+
+
+/* === CryptoNow V9: trade section animation + useful trade button === */
+html{scroll-behavior:smooth;}
+.status-pill.trade-jump{
+  text-decoration:none!important;
+  cursor:pointer;
+  position:relative;
+  overflow:hidden;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  box-shadow:0 12px 28px rgba(57,215,200,.16),0 0 0 1px rgba(57,215,200,.22) inset!important;
+  animation:tradeJumpGlow 2.6s ease-in-out infinite;
+}
+.status-pill.trade-jump::after{
+  content:"";
+  position:absolute;
+  inset:-40% -70%;
+  background:linear-gradient(110deg,transparent 40%,rgba(255,255,255,.55) 50%,transparent 60%);
+  transform:translateX(-120%) rotate(8deg);
+  animation:pillShine 4.8s ease-in-out infinite;
+}
+.status-pill.trade-jump:hover{transform:translateY(-2px) scale(1.03)!important;}
+@keyframes tradeJumpGlow{
+  0%,100%{box-shadow:0 12px 28px rgba(57,215,200,.14),0 0 0 1px rgba(57,215,200,.22) inset;}
+  50%{box-shadow:0 16px 40px rgba(57,215,200,.28),0 0 0 1px rgba(104,216,255,.34) inset;}
+}
+@keyframes pillShine{
+  0%,62%{transform:translateX(-120%) rotate(8deg);}
+  82%,100%{transform:translateX(120%) rotate(8deg);}
+}
+#trade-section{scroll-margin-top:26px;}
+#trade-section.trade-focus{
+  animation:tradeSectionFocus 1.25s ease both;
+}
+@keyframes tradeSectionFocus{
+  0%{box-shadow:0 18px 45px rgba(30,45,80,.12),0 0 0 0 rgba(57,215,200,.0);}
+  35%{box-shadow:0 24px 65px rgba(30,45,80,.18),0 0 0 7px rgba(57,215,200,.20),0 0 55px rgba(104,216,255,.20);}
+  100%{box-shadow:0 18px 45px rgba(30,45,80,.12),0 1px 0 rgba(255,255,255,.72) inset;}
+}
+.animated-trade-card{
+  position:relative;
+  overflow:hidden;
+  animation:tradeCardIn .62s cubic-bezier(.2,.9,.25,1.18) both, tradeCardBreathe 4.4s ease-in-out infinite 1s;
+}
+.animated-trade-card:nth-child(2){animation-delay:.08s,1.08s;}
+.animated-trade-card:nth-child(3){animation-delay:.16s,1.16s;}
+.animated-trade-card:nth-child(4){animation-delay:.24s,1.24s;}
+.animated-trade-card::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:radial-gradient(circle at 18% 18%,rgba(57,215,200,.20),transparent 32%),
+             radial-gradient(circle at 88% 0%,rgba(184,167,255,.18),transparent 34%);
+  opacity:.65;
+}
+.animated-trade-card::after{
+  content:"";
+  position:absolute;
+  width:180px;
+  height:180px;
+  right:-70px;
+  bottom:-80px;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(104,216,255,.24),transparent 68%);
+  filter:blur(10px);
+  animation:tradeGlowMove 5.6s ease-in-out infinite;
+}
+@keyframes tradeCardIn{
+  from{opacity:0;transform:translateY(26px) scale(.96);filter:blur(7px);}
+  to{opacity:1;transform:translateY(0) scale(1);filter:blur(0);}
+}
+@keyframes tradeCardBreathe{
+  0%,100%{transform:translateY(0);}
+  50%{transform:translateY(-4px);}
+}
+@keyframes tradeGlowMove{
+  0%,100%{transform:translate(0,0) scale(1);opacity:.40;}
+  50%{transform:translate(-24px,-20px) scale(1.12);opacity:.78;}
+}
+.animated-trade-card .trade-head,
+.animated-trade-card .trade-meta,
+.animated-trade-card form{position:relative;z-index:1;}
+.animated-trade-card .badge{
+  animation:badgePulse 2.2s ease-in-out infinite;
+}
+@keyframes badgePulse{
+  0%,100%{filter:brightness(1);transform:scale(1);}
+  50%{filter:brightness(1.12);transform:scale(1.04);}
+}
+.close-card-form button,
+.close-card-form .posbtn{
+  position:relative;
+  overflow:hidden;
+}
+.close-card-form button::after,
+.close-card-form .posbtn::after{
+  content:"";
+  position:absolute;
+  inset:-35% -65%;
+  background:linear-gradient(110deg,transparent 42%,rgba(255,255,255,.55) 50%,transparent 58%);
+  transform:translateX(-120%) skewX(-15deg);
+  animation:closeButtonShine 3.8s ease-in-out infinite;
+}
+@keyframes closeButtonShine{
+  0%,58%{transform:translateX(-120%) skewX(-15deg);}
+  80%,100%{transform:translateX(120%) skewX(-15deg);}
+}
+.animated-empty{
+  position:relative;
+  overflow:hidden;
+  animation:emptyFloat 4s ease-in-out infinite;
+}
+.animated-empty::after{
+  content:"";
+  position:absolute;
+  left:-30%;
+  top:0;
+  width:30%;
+  height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.32),transparent);
+  animation:emptyScan 4.5s ease-in-out infinite;
+}
+@keyframes emptyFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes emptyScan{0%,55%{left:-35%}85%,100%{left:105%}}
+@media(prefers-reduced-motion:reduce){
+  .status-pill.trade-jump,.status-pill.trade-jump::after,#trade-section.trade-focus,.animated-trade-card,.animated-trade-card::after,.animated-trade-card .badge,.close-card-form button::after,.animated-empty,.animated-empty::after{animation:none!important;}
+}

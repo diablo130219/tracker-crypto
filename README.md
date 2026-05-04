@@ -1,4 +1,4 @@
-# CryptoNow Bankroll Tracker V5
+# CryptoNow Bankroll Tracker V8
 
 Versione con branding coordinato, logo rotondo con cornice, sfondo più luminoso/contrastato e animazioni UI.
 
@@ -17,3 +17,10 @@ gunicorn app:app
 - `TRACKER_API_TOKEN`
 - `STARTING_BANKROLL`
 - `CURRENCY`
+
+
+## V8
+- Badge “Tracker online” non cliccabile
+- Scritta Guadagna più pulita
+- Disegno hero con movimento continuo senza hover
+- Shine/glow animato sempre attivo

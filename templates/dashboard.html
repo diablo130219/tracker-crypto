@@ -18,7 +18,7 @@
       </div>
     </div>
     <div class="brand-actions">
-      <span class="status-pill">Dashboard live</span>
+      <a class="status-pill trade-jump" href="#trade-section" title="Vai ai trade">📊 Vedi Trade</a>
       <a class="logout" href="/logout">Esci</a>
     </div>
   </nav>
@@ -61,11 +61,11 @@
   <canvas id="bankrollChart" height="90"></canvas>
 </section>
 
-<section class="panel open-panel">
+<section class="panel open-panel" id="trade-section">
   <div class="panel-title"><h2>Trade aperti da chiudere</h2><span>{{ open_trades|length }} aperti</span></div>
   <div class="open-grid">
     {% for t in open_trades %}
-    <article class="trade-card">
+    <article class="trade-card animated-trade-card">
       <div class="trade-head">
         <div><b>{{ t.symbol }}</b><small>{{ t.created_at[:16].replace('T',' ') }}</small></div>
         <span class="badge {{ 'buy' if t.side in ['BUY','LONG'] else 'sell' }}">{{ t.side }}</span>
@@ -86,7 +86,7 @@
       </form>
     </article>
     {% else %}
-    <div class="empty big-empty">Nessun trade aperto. Appena il bot invia BUY/SELL, comparirà qui con il pulsante di chiusura manuale.</div>
+    <div class="empty big-empty animated-empty">Nessun trade aperto. Appena il bot invia BUY/SELL, comparirà qui con il pulsante di chiusura manuale.</div>
     {% endfor %}
   </div>
 </section>
@@ -145,6 +145,17 @@ new Chart(document.getElementById('bankrollChart'), {
   type: 'line',
   data: { labels, datasets: [{ label: 'Bankroll', data, tension: .35, fill: true, pointRadius: 4 }] },
   options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false } } }
+});
+
+
+document.querySelectorAll('a[href="#trade-section"]').forEach((link) => {
+  link.addEventListener('click', () => {
+    const target = document.getElementById('trade-section');
+    if (!target) return;
+    target.classList.remove('trade-focus');
+    void target.offsetWidth;
+    target.classList.add('trade-focus');
+  });
 });
 </script>
 </body></html>

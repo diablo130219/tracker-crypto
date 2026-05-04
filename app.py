@@ -174,3 +174,7 @@ def add_manual():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+@app.route("/test-telegram")
+def test_telegram():
+    send_telegram("🚀 TEST TELEGRAM OK")
+    return "OK"

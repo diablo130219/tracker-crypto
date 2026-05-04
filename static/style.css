@@ -659,3 +659,40 @@ html{scroll-behavior:smooth;}
 @media(prefers-reduced-motion:reduce){
   .status-pill.trade-jump,.status-pill.trade-jump::after,#trade-section.trade-focus,.animated-trade-card,.animated-trade-card::after,.animated-trade-card .badge,.close-card-form button::after,.animated-empty,.animated-empty::after{animation:none!important;}
 }
+
+/* === CryptoNow V10: fix click Vedi Trade + movimento immagine sempre attivo === */
+.status-pill.trade-jump{
+  pointer-events:auto !important;
+  cursor:pointer !important;
+  user-select:none !important;
+  text-decoration:none !important;
+  color:#117f79 !important;
+  background:rgba(255,255,255,.72) !important;
+}
+.status-pill.trade-jump:active{transform:translateY(0) scale(.98)!important;}
+
+/* Movimento continuo più evidente del visual a destra */
+.ultra-hero-art{
+  animation:heroBlockFloatV10 5.8s ease-in-out infinite !important;
+  will-change:transform !important;
+}
+.hero-art img,
+.ultra-hero-img{
+  animation:heroImageFloatV10 4.2s ease-in-out infinite, cryptoNowSoftGlow 3.2s ease-in-out infinite alternate !important;
+  will-change:transform,filter,box-shadow !important;
+}
+@keyframes heroBlockFloatV10{
+  0%,100%{transform:translateY(0px)}
+  50%{transform:translateY(-7px)}
+}
+@keyframes heroImageFloatV10{
+  0%,100%{transform:translateY(0px) rotate(-.45deg) scale(1)}
+  25%{transform:translateY(-10px) rotate(.35deg) scale(1.014)}
+  50%{transform:translateY(-18px) rotate(.65deg) scale(1.024)}
+  75%{transform:translateY(-8px) rotate(-.2deg) scale(1.012)}
+}
+
+/* La sezione trade si evidenzia anche quando il browser arriva con anchor */
+#trade-section:target{
+  animation:tradeSectionFocus 1.35s ease both !important;
+}

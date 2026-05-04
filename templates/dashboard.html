@@ -149,9 +149,11 @@ new Chart(document.getElementById('bankrollChart'), {
 
 
 document.querySelectorAll('a[href="#trade-section"]').forEach((link) => {
-  link.addEventListener('click', () => {
+  link.addEventListener('click', (event) => {
+    event.preventDefault();
     const target = document.getElementById('trade-section');
     if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     target.classList.remove('trade-focus');
     void target.offsetWidth;
     target.classList.add('trade-focus');

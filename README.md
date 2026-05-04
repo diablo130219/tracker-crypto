@@ -1,20 +1,19 @@
-# CryptoNow Tracker V4
+# CryptoNow Bankroll Tracker V5
 
-Versione coordinata con brand CryptoNow:
+Versione con branding coordinato, logo rotondo con cornice, sfondo più luminoso/contrastato e animazioni UI.
 
-- header sito coordinato
-- icona manga CryptoNow animata via CSS
-- login brandizzato
-- dashboard V3 invariata: segnali automatici + chiusura manuale profit/loss
-- endpoint `/healthz`
-
-## Variabili
-
-```txt
-APP_SECRET=la_password_dashboard
-TRACKER_API_TOKEN=token_segreto_api
-STARTING_BANKROLL=1000
-CURRENCY=EUR
+## Deploy Render
+Build command:
+```bash
+pip install -r requirements.txt
+```
+Start command:
+```bash
+gunicorn app:app
 ```
 
-Carica tutti i file nel repo `tracker-crypto` e fai deploy su Render.
+## Variabili ambiente
+- `APP_SECRET`
+- `TRACKER_API_TOKEN`
+- `STARTING_BANKROLL`
+- `CURRENCY`

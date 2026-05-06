@@ -1,13 +1,17 @@
 services:
   - type: web
-    name: cgmbet-pro
+    name: crypto-bankroll-tracker
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
     envVars:
-      - key: SECRET_KEY
+      - key: APP_SECRET
+        sync: false
+      - key: TRACKER_API_TOKEN
+        sync: false
+      - key: FLASK_SECRET_KEY
         generateValue: true
-      - key: APP_USERNAME
-        value: admin
-      - key: APP_PASSWORD
-        value: admin123
+      - key: STARTING_BANKROLL
+        value: 1000
+      - key: CURRENCY
+        value: EUR

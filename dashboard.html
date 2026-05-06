@@ -3,279 +3,161 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CGMBet Pro — Dashboard</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <title>CryptoNow Tracker</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-
-<!-- SITE HEADER con hero -->
-<header class="site-header" style="margin:0 0 24px;border-radius:0;border-left:0;border-right:0;border-top:0;">
+<header class="site-header">
   <nav class="brand-nav">
     <div class="brand-left">
-      <div class="logo-mark">⚽</div>
+      <img src="/static/cryptonow_icon.png" alt="CryptoNow" class="nav-icon animated-icon">
       <div>
-        <h1>CGMBet Pro</h1>
-        <p>Analizza • Filtra • Scommetti Meglio</p>
+        <h1>CryptoNow</h1>
+        <p>Traccia • Analizza • Guadagna</p>
       </div>
     </div>
     <div class="brand-actions">
-      <span class="status-pill">Data Room Attiva</span>
-      <a class="logout" href="{{ url_for('logout') }}">Esci</a>
+      <a class="status-pill trade-jump" href="#trade-section" title="Vai ai trade">📊 Vedi Trade</a>
+      <a class="logout" href="/logout">Esci</a>
     </div>
   </nav>
 
   <section class="hero-brand">
     <div class="hero-copy">
-      <span class="eyebrow">CGMBet Pro · Sistema Strategie</span>
-      <h2>Analizza. Filtra.<strong>Vinci.</strong></h2>
-      <p>Dashboard completa per le tue strategie GG, Over 2.5 e Over 1.5. Importa i CSV da CGMBet e tieni tutto sotto controllo.</p>
+      <span class="eyebrow">Crypto Bankroll Tracker</span>
+      <h2>Traccia. Analizza. <strong>Guadagna.</strong></h2>
+      <p>Segnali automatici dal bot Telegram, trade aperti e chiusura manuale profit/loss in una dashboard coordinata CryptoNow.</p>
       <div class="hero-mini-stats">
-        <span>Database <b>{{ total_all }} match</b></span>
-        <span>Oggi <b>{{ today_count }} partite</b></span>
-        <span>7 Giorni <b>{{ next7_count }} partite</b></span>
-        <span>Slot Attivi <b>3 strategie</b></span>
+        <span>Bankroll <b>{{ stats.bankroll }} {{ stats.currency }}</b></span>
+        <span>Aperti <b>{{ stats.open_count }}</b></span>
+        <span>ROI <b>{{ stats.roi }}%</b></span>
       </div>
     </div>
-    <div class="hero-art">
-      <div class="hero-art-bg"></div>
-      <div class="hero-art-glow"></div>
-      <div class="hero-art-inner">⚽</div>
+    <div class="hero-art ultra-hero-art">
+      <div class="ultra-glow"></div>
+      <div class="ultra-rings"></div>
+      <img src="/static/cryptonow_full.png" alt="CryptoNow manga crypto" class="ultra-hero-img">
+      <div class="ultra-particles" aria-hidden="true">
+        <span style="--x:18%;--y:74%;--d:.1s"></span>
+        <span style="--x:32%;--y:82%;--d:.9s"></span>
+        <span style="--x:48%;--y:70%;--d:1.5s"></span>
+        <span style="--x:67%;--y:78%;--d:.45s"></span>
+        <span style="--x:80%;--y:64%;--d:1.1s"></span>
+      </div>
     </div>
   </section>
 </header>
 
-<div class="layout">
+<section class="grid cards">
+  <article class="card"><span>Bankroll attuale</span><strong>{{ stats.bankroll }} {{ stats.currency }}</strong></article>
+  <article class="card"><span>Profit/Loss chiuso</span><strong class="{{ 'pos' if stats.pnl_total >= 0 else 'neg' }}">{{ stats.pnl_total }} {{ stats.currency }}</strong></article>
+  <article class="card"><span>ROI</span><strong class="{{ 'pos' if stats.roi >= 0 else 'neg' }}">{{ stats.roi }}%</strong></article>
+  <article class="card"><span>Segnali aperti</span><strong>{{ stats.open_count }}</strong></article>
+</section>
 
-  <!-- SIDEBAR -->
-  <aside class="sidebar">
-    <div class="sidebar-logo">
-      <div class="sidebar-logo-mark">⚽</div>
-      <div>
-        <h1>CGMBet</h1>
-        <span>Pro Data Room</span>
+<section class="panel chart-panel">
+  <div class="panel-title"><h2>Andamento bankroll</h2><span>{{ stats.closed_count }} trade chiusi</span></div>
+  <canvas id="bankrollChart" height="90"></canvas>
+</section>
+
+<section class="panel open-panel" id="trade-section">
+  <div class="panel-title"><h2>Trade aperti da chiudere</h2><span>{{ open_trades|length }} aperti</span></div>
+  <div class="open-grid">
+    {% for t in open_trades %}
+    <article class="trade-card animated-trade-card">
+      <div class="trade-head">
+        <div><b>{{ t.symbol }}</b><small>{{ t.created_at[:16].replace('T',' ') }}</small></div>
+        <span class="badge {{ 'buy' if t.side in ['BUY','LONG'] else 'sell' }}">{{ t.side }}</span>
       </div>
+      <div class="trade-meta">
+        <div><span>Entrata</span><b>{{ t.entry }}</b></div>
+        <div><span>Score</span><b>{{ t.score }}</b></div>
+        <div><span>Fonte</span><b>{{ t.source }}</b></div>
+      </div>
+      <form class="close-card-form" method="post" action="/close/{{ t.id }}">
+        <input name="exit" type="number" step="0.000001" placeholder="Prezzo uscita">
+        <input name="pnl" type="number" step="0.01" placeholder="Profit/Loss €  es. 12 o -8" required>
+        <input name="notes" placeholder="Nota es. TP manuale / SL manuale">
+        <button class="posbtn">Chiudi trade</button>
+      </form>
+      <form method="post" action="/delete/{{ t.id }}" class="delete-line">
+        <button class="mini danger" onclick="return confirm('Eliminare segnale aperto?')">Elimina segnale</button>
+      </form>
+    </article>
+    {% else %}
+    <div class="empty big-empty animated-empty">Nessun trade aperto. Appena il bot invia BUY/SELL, comparirà qui con il pulsante di chiusura manuale.</div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="grid two">
+  <article class="panel">
+    <div class="panel-title"><h2>Aggiungi operazione manuale</h2></div>
+    <form class="trade-form" method="post" action="/add">
+      <input name="symbol" placeholder="BTC/USD" required>
+      <select name="side"><option>BUY</option><option>SELL</option><option>LONG</option><option>SHORT</option><option>MANUAL</option></select>
+      <input name="entry" type="number" step="0.000001" placeholder="Entrata">
+      <input name="exit" type="number" step="0.000001" placeholder="Uscita">
+      <input name="amount" type="number" step="0.01" placeholder="Importo">
+      <input name="pnl" type="number" step="0.01" placeholder="P/L es. 12.50 o -8">
+      <input name="score" type="number" step="0.1" placeholder="Score">
+      <select name="status"><option value="closed">closed</option><option value="open">open</option></select>
+      <textarea name="notes" placeholder="Note"></textarea>
+      <button>Salva operazione</button>
+    </form>
+  </article>
+
+  <article class="panel">
+    <div class="panel-title"><h2>Statistiche</h2></div>
+    <div class="stats-list">
+      <div><span>Capitale iniziale</span><b>{{ stats.starting_bankroll }} {{ stats.currency }}</b></div>
+      <div><span>Trade vincenti</span><b>{{ stats.wins }}</b></div>
+      <div><span>Trade perdenti</span><b>{{ stats.losses }}</b></div>
+      <div><span>Winrate</span><b>{{ stats.winrate }}%</b></div>
+      <div><span>Miglior profit</span><b class="pos">{{ stats.best }} {{ stats.currency }}</b></div>
+      <div><span>Peggior loss</span><b class="neg">{{ stats.worst }} {{ stats.currency }}</b></div>
     </div>
+  </article>
+</section>
 
-    <a href="{{ url_for('dashboard') }}" class="nav-dashboard active">📊 Dashboard</a>
-
-    <div class="nav-section-title">Strategie</div>
-
-    <a href="{{ url_for('index', strategy='GG') }}" class="nav-item">
-      <div><strong>GG</strong><small>{{ gg_count }} match caricati</small></div>
-      <div class="nav-dot"></div>
-    </a>
-    <a href="{{ url_for('index', strategy='Over 2.5') }}" class="nav-item">
-      <div><strong>Over 2.5</strong><small>{{ over25_count }} match caricati</small></div>
-      <div class="nav-dot"></div>
-    </a>
-    <a href="{{ url_for('index', strategy='Over 1.5') }}" class="nav-item">
-      <div><strong>Over 1.5</strong><small>{{ over15_count }} match caricati</small></div>
-      <div class="nav-dot"></div>
-    </a>
-
-    <div class="sidebar-db-card">
-      <span>Database Totale</span>
-      <strong>{{ total_all }}</strong>
-      <small>partite caricate</small>
-    </div>
-  </aside>
-
-  <!-- MAIN -->
-  <main class="main-content">
-
-    <div class="page-top">
-      <div>
-        <div class="page-top-kicker">CGMBet Pro · Panoramica Generale</div>
-        <h2>Dashboard</h2>
-        <p>Statistiche e andamento delle tue strategie di scommessa.</p>
-      </div>
-    </div>
-
-    <!-- KPI CARDS -->
-    <div class="grid cards">
-      <div class="card">
-        <span>Totale Database</span>
-        <strong>{{ total_all }}</strong>
-        <small>partite totali</small>
-      </div>
-      <div class="card green">
-        <span>Partite Oggi</span>
-        <strong>{{ today_count }}</strong>
-        <small>programmate oggi</small>
-      </div>
-      <div class="card cyan">
-        <span>Prossimi 7 Giorni</span>
-        <strong>{{ next7_count }}</strong>
-        <small>in programma</small>
-      </div>
-      <div class="card purple">
-        <span>Slot Attivi</span>
-        <strong>3</strong>
-        <small>GG · Over 2.5 · Over 1.5</small>
-      </div>
-    </div>
-
-    <!-- CHARTS -->
-    <div class="charts-grid">
-
-      <!-- Donut -->
-      <div class="chart-card">
-        <h3>Partite per Strategia</h3>
-        <p>Distribuzione degli slot attivi nel database</p>
-        <div class="chart-wrap">
-          <canvas id="strategyChart"></canvas>
-        </div>
-      </div>
-
-      <!-- Odds distribution -->
-      <div class="chart-card">
-        <h3>Distribuzione Quote</h3>
-        <p>Bassa &lt;1.40 · Media 1.40–1.70 · Alta &gt;1.70</p>
-        <div class="odds-section">
-          {% for s, dist in odds_distribution.items() %}
-          {% set tot = dist.low + dist.mid + dist.high %}
-          <div>
-            <div class="odds-row-head">
-              <span>{{ s }}</span>
-              <span>{{ tot }} con quota</span>
-            </div>
-            <div class="odds-track">
-              {% if tot > 0 %}
-              <div class="odds-seg" style="width:{{ (dist.low / tot * 100)|round }}%; background:#00ffc2;"></div>
-              <div class="odds-seg" style="width:{{ (dist.mid / tot * 100)|round }}%; background:#7c3aed;"></div>
-              <div class="odds-seg" style="width:{{ (dist.high / tot * 100)|round }}%; background:#fb7185;"></div>
-              {% else %}
-              <div class="odds-seg" style="width:100%; background:rgba(255,255,255,.07);"></div>
-              {% endif %}
-            </div>
-            <div class="odds-legend">
-              <span><span class="dot" style="background:#00ffc2;"></span>Basse: {{ dist.low }}</span>
-              <span><span class="dot" style="background:#7c3aed;"></span>Medie: {{ dist.mid }}</span>
-              <span><span class="dot" style="background:#fb7185;"></span>Alte: {{ dist.high }}</span>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-
-      <!-- Trend -->
-      <div class="chart-card full">
-        <h3>Andamento Importazioni</h3>
-        <p>Partite aggiunte negli ultimi 14 giorni</p>
-        <div class="chart-wrap tall">
-          <canvas id="trendChart"></canvas>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- RIEPILOGO TABLE -->
-    <div class="table-panel">
-      <div class="table-header">
-        <div>
-          <div class="page-top-kicker" style="margin-bottom:4px;">Riepilogo</div>
-          <h3>Tutte le Strategie</h3>
-        </div>
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Strategia</th>
-            <th>Partite</th>
-            <th>Quota Media</th>
-            <th>Azioni</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><span class="strat-badge badge-gg">GG</span></td>
-            <td><strong>{{ strategy_counts["GG"] }}</strong></td>
-            <td>{{ avg_odds["GG"] if avg_odds["GG"] > 0 else "—" }}</td>
-            <td class="td-actions">
-              <a href="{{ url_for('index', strategy='GG') }}" class="action-link">Vedi partite →</a>
-              <a href="{{ url_for('export_strategy', strategy='GG') }}" class="muted-link">Esporta CSV</a>
-            </td>
-          </tr>
-          <tr>
-            <td><span class="strat-badge badge-o25">Over 2.5</span></td>
-            <td><strong>{{ strategy_counts["Over 2.5"] }}</strong></td>
-            <td>{{ avg_odds["Over 2.5"] if avg_odds["Over 2.5"] > 0 else "—" }}</td>
-            <td class="td-actions">
-              <a href="{{ url_for('index', strategy='Over 2.5') }}" class="action-link">Vedi partite →</a>
-              <a href="{{ url_for('export_strategy', strategy='Over 2.5') }}" class="muted-link">Esporta CSV</a>
-            </td>
-          </tr>
-          <tr>
-            <td><span class="strat-badge badge-o15">Over 1.5</span></td>
-            <td><strong>{{ strategy_counts["Over 1.5"] }}</strong></td>
-            <td>{{ avg_odds["Over 1.5"] if avg_odds["Over 1.5"] > 0 else "—" }}</td>
-            <td class="td-actions">
-              <a href="{{ url_for('index', strategy='Over 1.5') }}" class="action-link">Vedi partite →</a>
-              <a href="{{ url_for('export_strategy', strategy='Over 1.5') }}" class="muted-link">Esporta CSV</a>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-  </main>
-</div>
-
-<div class="version">CGMBet Pro v1.0</div>
+<section class="panel">
+  <div class="panel-title"><h2>Storico completo</h2><span>Ultimi record</span></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Data</th><th>Pair</th><th>Side</th><th>Entry</th><th>Exit</th><th>P/L</th><th>Score</th><th>Stato</th><th>Fonte</th><th></th></tr></thead>
+    <tbody>
+    {% for t in trades %}
+      <tr>
+        <td>{{ t.created_at[:16].replace('T',' ') }}</td><td>{{ t.symbol }}</td><td><span class="badge {{ 'buy' if t.side in ['BUY','LONG'] else 'sell' }}">{{ t.side }}</span></td>
+        <td>{{ t.entry }}</td><td>{{ t.exit }}</td><td class="{{ 'pos' if t.pnl >= 0 else 'neg' }}">{{ t.pnl }}</td><td>{{ t.score }}</td><td>{{ t.status }}</td><td>{{ t.source }}</td>
+        <td><form method="post" action="/delete/{{ t.id }}"><button class="mini danger" onclick="return confirm('Eliminare record?')">×</button></form></td>
+      </tr>
+    {% else %}<tr><td colspan="10" class="empty">Nessun dato ancora.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
 
 <script>
-// Donut
-new Chart(document.getElementById('strategyChart').getContext('2d'), {
-  type: 'doughnut',
-  data: {
-    labels: ['GG', 'Over 2.5', 'Over 1.5'],
-    datasets: [{
-      data: [{{ strategy_counts["GG"] }}, {{ strategy_counts["Over 2.5"] }}, {{ strategy_counts["Over 1.5"] }}],
-      backgroundColor: ['rgba(0,255,194,.18)', 'rgba(124,58,237,.18)', 'rgba(251,113,133,.18)'],
-      borderColor: ['#00ffc2', '#7c3aed', '#fb7185'],
-      borderWidth: 2,
-      hoverOffset: 10,
-    }]
-  },
-  options: {
-    responsive: true, maintainAspectRatio: false,
-    cutout: '68%',
-    plugins: {
-      legend: { position: 'bottom', labels: { color: '#8e9bb8', font: { size: 12 }, padding: 16 } }
-    }
-  }
+const curve = {{ stats.curve|tojson }};
+const labels = curve.map((x, i) => x.date + (i === 0 ? '' : ' #' + i));
+const data = curve.map(x => x.bankroll);
+new Chart(document.getElementById('bankrollChart'), {
+  type: 'line',
+  data: { labels, datasets: [{ label: 'Bankroll', data, tension: .35, fill: true, pointRadius: 4 }] },
+  options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false } } }
 });
 
-// Line
-new Chart(document.getElementById('trendChart').getContext('2d'), {
-  type: 'line',
-  data: {
-    labels: {{ trend_labels|tojson }},
-    datasets: [{
-      label: 'Partite importate',
-      data: {{ trend_data|tojson }},
-      borderColor: '#00ffc2',
-      backgroundColor: 'rgba(0,255,194,.07)',
-      borderWidth: 2,
-      fill: true,
-      tension: 0.4,
-      pointBackgroundColor: '#00ffc2',
-      pointBorderColor: '#060b17',
-      pointBorderWidth: 2,
-      pointRadius: 5,
-      pointHoverRadius: 7,
-    }]
-  },
-  options: {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: {
-      x: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#8e9bb8', font: { size: 11 } } },
-      y: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#8e9bb8', font: { size: 11 }, stepSize: 1 }, beginAtZero: true }
-    }
-  }
+
+document.querySelectorAll('a[href="#trade-section"]').forEach((link) => {
+  link.addEventListener('click', (event) => {
+    event.preventDefault();
+    const target = document.getElementById('trade-section');
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    target.classList.remove('trade-focus');
+    void target.offsetWidth;
+    target.classList.add('trade-focus');
+  });
 });
 </script>
-</body>
-</html>
+</body></html>

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CGMBet Pro — Accesso</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="login-body">
+
+  <div class="login-card">
+    <div class="login-logo-wrap">
+      <div class="login-logo-mark">⚽</div>
+    </div>
+    <h2>CGMBet Pro</h2>
+    <p>Accedi alla tua data room strategie.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <form method="POST">
+      <label>Username</label>
+      <input type="text" name="username" placeholder="Il tuo username" required autocomplete="username">
+      <label>Password</label>
+      <input type="password" name="password" placeholder="La tua password" required autocomplete="current-password">
+      <button type="submit">Entra nella Dashboard</button>
+    </form>
+  </div>
+
+  <div class="version">CGMBet Pro v1.0</div>
+</body>
+</html>

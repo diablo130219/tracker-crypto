@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CGMBet Pro — {{ strategy }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<!-- SITE HEADER -->
+<header class="site-header" style="margin:0;border-radius:0;border-left:0;border-right:0;border-top:0;">
+  <nav class="brand-nav">
+    <div class="brand-left">
+      <div class="logo-mark">⚽</div>
+      <div>
+        <h1>CGMBet Pro</h1>
+        <p>Analizza • Filtra • Scommetti Meglio</p>
+      </div>
+    </div>
+    <div class="brand-actions">
+      <span class="status-pill">Data Room Attiva</span>
+      <a class="logout" href="{{ url_for('logout') }}">Esci</a>
+    </div>
+  </nav>
+</header>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-mark">⚽</div>
+      <div>
+        <h1>CGMBet</h1>
+        <span>Pro Data Room</span>
+      </div>
+    </div>
+
+    <a href="{{ url_for('dashboard') }}" class="nav-dashboard">📊 Dashboard</a>
+
+    <div class="nav-section-title">Strategie</div>
+
+    <a href="{{ url_for('index', strategy='GG') }}" class="nav-item {% if strategy == 'GG' %}active{% endif %}">
+      <div>
+        <strong>GG</strong>
+        <small>{{ gg_count }} match caricati</small>
+      </div>
+      <div class="nav-dot"></div>
+    </a>
+
+    <a href="{{ url_for('index', strategy='Over 2.5') }}" class="nav-item {% if strategy == 'Over 2.5' %}active{% endif %}">
+      <div>
+        <strong>Over 2.5</strong>
+        <small>{{ over25_count }} match caricati</small>
+      </div>
+      <div class="nav-dot"></div>
+    </a>
+
+    <a href="{{ url_for('index', strategy='Over 1.5') }}" class="nav-item {% if strategy == 'Over 1.5' %}active{% endif %}">
+      <div>
+        <strong>Over 1.5</strong>
+        <small>{{ over15_count }} match caricati</small>
+      </div>
+      <div class="nav-dot"></div>
+    </a>
+
+    <div class="sidebar-db-card">
+      <span>Database Totale</span>
+      <strong>{{ total_all }}</strong>
+      <small>partite caricate</small>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main-content">
+
+    <div class="page-top">
+      <div>
+        <div class="page-top-kicker">CGMBet Pro · Strategia Attiva</div>
+        <h2>{{ strategy }}</h2>
+        <p>Gestisci e visualizza i dati CSV per questa strategia.</p>
+      </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <!-- IMPORT SECTION -->
+    <div class="import-section">
+      <div class="import-copy">
+        <span class="strategy-badge">Strategia selezionata</span>
+        <h3>{{ strategy }}</h3>
+        <p>Importa il CSV esportato da CGMBet, visualizza le partite e mantieni i dati separati per ogni slot: GG, Over 2.5 e Over 1.5.</p>
+      </div>
+      <form class="import-form" action="{{ url_for('import_csv') }}" method="POST" enctype="multipart/form-data">
+        <input type="hidden" name="strategy" value="{{ strategy }}">
+        <label>
+          <span>Carica CSV CGMBet</span>
+          <input type="file" name="csv_file" accept=".csv" required>
+        </label>
+        <button type="submit">⬆ Importa ora</button>
+      </form>
+    </div>
+
+    <!-- STAT CARDS -->
+    <div class="grid cards-3">
+      <div class="card"><span>Righe Visualizzate</span><strong>{{ total }}</strong><small>con filtro attivo</small></div>
+      <div class="card"><span>Totale Strategia</span><strong>{{ total_strategy }}</strong><small>match salvati</small></div>
+      <div class="card cyan"><span>Prossimi 7 Giorni</span><strong>7D</strong><small>filtro rapido attivo</small></div>
+    </div>
+
+    <!-- TOOLBAR -->
+    <div class="toolbar">
+      <form class="filters" method="GET">
+        <input type="hidden" name="strategy" value="{{ strategy }}">
+        <input type="text" name="search" value="{{ search }}" placeholder="Cerca squadra o campionato…">
+        <select name="date_filter">
+          <option value="">Tutte le date</option>
+          <option value="today" {% if date_filter == "today" %}selected{% endif %}>Solo oggi</option>
+          <option value="7days" {% if date_filter == "7days" %}selected{% endif %}>Prossimi 7 giorni</option>
+        </select>
+        <button class="btn btn-dark" type="submit">Filtra</button>
+      </form>
+      <div class="actions">
+        <a class="btn btn-export" href="{{ url_for('export_strategy', strategy=strategy) }}">⬇ Esporta CSV</a>
+        <form action="{{ url_for('clear_strategy', strategy=strategy) }}" method="POST"
+              onsubmit="return confirm('Cancellare tutti i dati di {{ strategy }}?')">
+          <button class="btn btn-danger" type="submit">🗑 Svuota</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="table-panel">
+      <div class="table-header">
+        <div>
+          <div class="page-top-kicker" style="margin-bottom:4px;">Match Data</div>
+          <h3>Dati {{ strategy }}</h3>
+        </div>
+        <div class="rows-badge">{{ total }} righe</div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Data / Ora</th>
+              <th>Campionato</th>
+              <th>Casa</th>
+              <th>Trasferta</th>
+              <th>Mercato</th>
+              <th>Quota</th>
+              <th>ELO GAP</th>
+              <th>GG Casa</th>
+              <th>GG Trasf.</th>
+              <th>Over Casa</th>
+              <th>Over Trasf.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in matches %}
+            <tr>
+              <td><strong>{{ m.match_date }}</strong><small>{{ m.match_time }}</small></td>
+              <td>{{ m.championship }}</td>
+              <td class="team">{{ m.home_team }}</td>
+              <td>{{ m.away_team }}</td>
+              <td><span class="market-badge">{{ m.market }}</span></td>
+              <td><span class="odd-value">{{ "%.2f"|format(m.odd or 0) }}</span></td>
+              <td>{{ m.elo_gap }}</td>
+              <td>{{ m.gg_home }}</td>
+              <td>{{ m.gg_away }}</td>
+              <td>{{ m.over_home }}</td>
+              <td>{{ m.over_away }}</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="11">
+                <div class="empty-state">
+                  <strong>Nessun dato caricato</strong>
+                  <span>Importa un CSV CGMBet per visualizzare i match della strategia {{ strategy }}.</span>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="version">CGMBet Pro v1.0</div>
+</body>
+</html>

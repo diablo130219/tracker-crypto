@@ -1,356 +1,334 @@
+import csv
+import io
 import os
 import sqlite3
-from datetime import datetime, timezone
+from datetime import date, timedelta
 from functools import wraps
-from pathlib import Path
+from collections import defaultdict
 
-import requests
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for
-
-BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
-DATA_DIR.mkdir(exist_ok=True)
-DB_PATH = DATA_DIR / "tracker.db"
-
-APP_SECRET = os.environ.get("APP_SECRET", "cambia-questa-password")
-API_TOKEN = os.environ.get("TRACKER_API_TOKEN", "cambia-questo-token")
-STARTING_BANKROLL = float(os.environ.get("STARTING_BANKROLL", "1000"))
-CURRENCY = os.environ.get("CURRENCY", "EUR")
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file
 
 app = Flask(__name__)
-APP_BRAND = "CryptoNow"
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", APP_SECRET)
+app.secret_key = os.environ.get("SECRET_KEY", "cambia-questa-secret-key")
+
+DATABASE = os.environ.get("DATABASE_PATH", "cgmbet.db")
+
+APP_USERNAME = os.environ.get("APP_USERNAME", "admin")
+APP_PASSWORD = os.environ.get("APP_PASSWORD", "admin123")
+
+STRATEGIES = ["GG", "Over 2.5", "Over 1.5"]
 
 
-def send_telegram_message(text):
-    """Invia una notifica Telegram senza bloccare il tracker se qualcosa va storto."""
-    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-        app.logger.info("Telegram non configurato: TELEGRAM_TOKEN o TELEGRAM_CHAT_ID mancanti")
-        return False
-    try:
-        response = requests.post(
-            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-            json={"chat_id": TELEGRAM_CHAT_ID, "text": text},
-            timeout=10,
-        )
-        if response.status_code != 200:
-            app.logger.error("Telegram errore %s: %s", response.status_code, response.text)
-            return False
-        return True
-    except Exception as exc:
-        app.logger.error("Telegram exception: %s", exc)
-        return False
-
-
-def db():
-    conn = sqlite3.connect(DB_PATH)
+def get_db():
+    conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     return conn
 
 
 def init_db():
-    with db() as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS trades (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                created_at TEXT NOT NULL,
-                symbol TEXT NOT NULL,
-                side TEXT NOT NULL,
-                entry REAL,
-                exit REAL,
-                amount REAL DEFAULT 0,
-                pnl REAL DEFAULT 0,
-                score REAL,
-                status TEXT DEFAULT 'open',
-                source TEXT DEFAULT 'telegram',
-                notes TEXT DEFAULT ''
-            )
-            """
+    conn = get_db()
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS matches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            strategy TEXT NOT NULL,
+            match_date TEXT,
+            match_time TEXT,
+            championship TEXT,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            market TEXT,
+            odd REAL DEFAULT 0,
+            elo_gap TEXT DEFAULT '',
+            gg_home TEXT DEFAULT '',
+            gg_away TEXT DEFAULT '',
+            over_home TEXT DEFAULT '',
+            over_away TEXT DEFAULT '',
+            notes TEXT DEFAULT '',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
-        conn.commit()
+        """
+    )
+    conn.commit()
+    conn.close()
 
 
-def now_iso():
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+def login_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not session.get("logged_in"):
+            return redirect(url_for("login"))
+        return view(*args, **kwargs)
+    return wrapped
 
 
-def to_float(value, default=0.0):
+def parse_float(value):
+    if value is None:
+        return 0
+    value = str(value).replace(",", ".").strip()
     try:
-        if value is None or value == "":
-            return default
-        return float(str(value).replace(",", "."))
-    except Exception:
-        return default
+        return float(value)
+    except ValueError:
+        return 0
 
 
-def require_login(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        if session.get("logged_in") or session.get("logged"):
-            return func(*args, **kwargs)
-        return redirect("/login")
-    return wrapper
+def pick(row, names):
+    lowered = {str(k).strip().lower(): v for k, v in row.items()}
+    for wanted in names:
+        wanted = wanted.lower()
+        for key, value in lowered.items():
+            if wanted in key:
+                return str(value or "").strip().replace('"', "")
+    return ""
 
 
-def read_trades(limit=None):
-    query = "SELECT * FROM trades ORDER BY datetime(created_at) DESC, id DESC"
-    params = []
-    if limit:
-        query += " LIMIT ?"
-        params.append(limit)
-    with db() as conn:
-        return [dict(row) for row in conn.execute(query, params).fetchall()]
+def detect_delimiter(text):
+    first = text.splitlines()[0] if text.splitlines() else ""
+    return ";" if first.count(";") >= first.count(",") else ","
 
 
-def calc_stats():
-    trades = list(reversed(read_trades()))
-    bankroll = STARTING_BANKROLL
-    curve = [{"date": "start", "bankroll": round(bankroll, 2), "pnl": 0, "symbol": "START"}]
-    wins = losses = 0
-    pnl_total = 0.0
-    open_count = 0
-    closed_count = 0
-    best = 0.0
-    worst = 0.0
-
-    for t in trades:
-        status = str(t.get("status") or "").lower()
-        pnl = float(t.get("pnl") or 0)
-        if status == "open":
-            open_count += 1
-            continue
-        if status == "closed":
-            closed_count += 1
-            pnl_total += pnl
-            bankroll += pnl
-            best = max(best, pnl)
-            worst = min(worst, pnl)
-            if pnl > 0:
-                wins += 1
-            elif pnl < 0:
-                losses += 1
-            curve.append({
-                "date": t["created_at"][:10],
-                "bankroll": round(bankroll, 2),
-                "pnl": round(pnl, 2),
-                "symbol": t["symbol"],
-            })
-
-    closed = wins + losses
-    return {
-        "starting_bankroll": round(STARTING_BANKROLL, 2),
-        "bankroll": round(bankroll, 2),
-        "pnl_total": round(pnl_total, 2),
-        "roi": round((pnl_total / STARTING_BANKROLL * 100), 2) if STARTING_BANKROLL else 0,
-        "trades_count": len(trades),
-        "open_count": open_count,
-        "closed_count": closed_count,
-        "wins": wins,
-        "losses": losses,
-        "best": round(best, 2),
-        "worst": round(worst, 2),
-        "winrate": round((wins / closed * 100), 1) if closed else 0,
-        "currency": CURRENCY,
-        "curve": curve,
-    }
+def odd_for_strategy(row, strategy):
+    if strategy == "GG":
+        return pick(row, ["quota gg", "gg", "quota"])
+    if strategy == "Over 2.5":
+        return pick(row, ["quota over 2.5", "over 2.5", "quota"])
+    if strategy == "Over 1.5":
+        return pick(row, ["quota over 1.5", "over 1.5", "quota"])
+    return pick(row, ["quota", "odd"])
 
 
-@app.before_request
-def setup():
-    init_db()
-
-
-@app.route("/healthz")
-def healthz():
-    return "OK", 200
-
-
-@app.route("/test-telegram")
-def test_telegram():
-    ok = send_telegram_message("🚀 TEST TELEGRAM OK - CryptoNow")
-    return ("OK - messaggio inviato" if ok else "Telegram non inviato: controlla Render logs e variabili"), 200
+def get_counts(conn):
+    total_all = conn.execute("SELECT COUNT(*) FROM matches").fetchone()[0]
+    gg_count = conn.execute("SELECT COUNT(*) FROM matches WHERE strategy = 'GG'").fetchone()[0]
+    over25_count = conn.execute("SELECT COUNT(*) FROM matches WHERE strategy = 'Over 2.5'").fetchone()[0]
+    over15_count = conn.execute("SELECT COUNT(*) FROM matches WHERE strategy = 'Over 1.5'").fetchone()[0]
+    return total_all, gg_count, over25_count, over15_count
 
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    error = None
     if request.method == "POST":
-        if request.form.get("password") == APP_SECRET:
+        if request.form.get("username") == APP_USERNAME and request.form.get("password") == APP_PASSWORD:
             session["logged_in"] = True
-            session["logged"] = True
             return redirect(url_for("dashboard"))
-        error = "Password errata"
-    return render_template("login.html", error=error, brand=APP_BRAND)
+        flash("Credenziali non corrette.", "error")
+    return render_template("login.html")
 
 
 @app.route("/logout")
 def logout():
     session.clear()
-    return redirect("/login")
+    return redirect(url_for("login"))
+
+
+@app.route("/dashboard")
+@login_required
+def dashboard():
+    conn = get_db()
+    total_all, gg_count, over25_count, over15_count = get_counts(conn)
+
+    strategy_counts = {"GG": gg_count, "Over 2.5": over25_count, "Over 1.5": over15_count}
+
+    # Distribuzione quote per strategia
+    odds_distribution = {}
+    for s in STRATEGIES:
+        rows = conn.execute("SELECT odd FROM matches WHERE strategy = ? AND odd > 0", (s,)).fetchall()
+        low = sum(1 for r in rows if r["odd"] < 1.40)
+        mid = sum(1 for r in rows if 1.40 <= r["odd"] <= 1.70)
+        high = sum(1 for r in rows if r["odd"] > 1.70)
+        odds_distribution[s] = {"low": low, "mid": mid, "high": high}
+
+    # Andamento importazioni ultimi 14 giorni
+    today = date.today()
+    days = [(today - timedelta(days=i)).isoformat() for i in range(13, -1, -1)]
+    imports_by_day = defaultdict(int)
+    rows = conn.execute(
+        "SELECT DATE(created_at) as day, COUNT(*) as cnt FROM matches GROUP BY DATE(created_at)"
+    ).fetchall()
+    for r in rows:
+        imports_by_day[r["day"]] = r["cnt"]
+    trend_labels = [d[5:] for d in days]
+    trend_data = [imports_by_day.get(d, 0) for d in days]
+
+    today_count = conn.execute(
+        "SELECT COUNT(*) FROM matches WHERE match_date = ?", (today.isoformat(),)
+    ).fetchone()[0]
+    next7_count = conn.execute(
+        "SELECT COUNT(*) FROM matches WHERE match_date BETWEEN ? AND ?",
+        (today.isoformat(), (today + timedelta(days=7)).isoformat())
+    ).fetchone()[0]
+
+    avg_odds = {}
+    for s in STRATEGIES:
+        avg = conn.execute(
+            "SELECT AVG(odd) FROM matches WHERE strategy = ? AND odd > 0", (s,)
+        ).fetchone()[0]
+        avg_odds[s] = round(avg, 2) if avg else 0
+
+    conn.close()
+
+    return render_template(
+        "dashboard.html",
+        strategy_counts=strategy_counts,
+        odds_distribution=odds_distribution,
+        trend_labels=trend_labels,
+        trend_data=trend_data,
+        today_count=today_count,
+        next7_count=next7_count,
+        total_all=total_all,
+        gg_count=gg_count,
+        over25_count=over25_count,
+        over15_count=over15_count,
+        avg_odds=avg_odds,
+    )
 
 
 @app.route("/")
-@require_login
-def dashboard():
-    trades = read_trades(180)
-    open_trades = [t for t in trades if str(t.get("status") or "").lower() == "open"]
-    closed_trades = [t for t in trades if str(t.get("status") or "").lower() == "closed"]
+@login_required
+def index():
+    strategy = request.args.get("strategy", "GG")
+    search = request.args.get("search", "").strip()
+    date_filter = request.args.get("date_filter", "")
+
+    query = "SELECT * FROM matches WHERE strategy = ?"
+    params = [strategy]
+
+    if search:
+        query += " AND (home_team LIKE ? OR away_team LIKE ? OR championship LIKE ? OR notes LIKE ?)"
+        like = f"%{search}%"
+        params.extend([like, like, like, like])
+
+    if date_filter == "today":
+        query += " AND match_date = ?"
+        params.append(date.today().isoformat())
+
+    if date_filter == "7days":
+        query += " AND match_date BETWEEN ? AND ?"
+        params.append(date.today().isoformat())
+        params.append((date.today() + timedelta(days=7)).isoformat())
+
+    query += " ORDER BY match_date ASC, match_time ASC, championship ASC"
+
+    conn = get_db()
+    matches = conn.execute(query, params).fetchall()
+    total_strategy = conn.execute("SELECT COUNT(*) FROM matches WHERE strategy = ?", (strategy,)).fetchone()[0]
+    total_all, gg_count, over25_count, over15_count = get_counts(conn)
+    conn.close()
+
     return render_template(
-        "dashboard.html",
-        stats=calc_stats(),
-        trades=trades,
-        open_trades=open_trades,
-        closed_trades=closed_trades,
+        "index.html",
+        matches=matches,
+        strategy=strategy,
+        search=search,
+        date_filter=date_filter,
+        total=len(matches),
+        total_strategy=total_strategy,
+        total_all=total_all,
+        gg_count=gg_count,
+        over25_count=over25_count,
+        over15_count=over15_count,
     )
 
 
-@app.route("/api/stats")
-def api_stats():
-    return jsonify(calc_stats())
+@app.route("/import", methods=["POST"])
+@login_required
+def import_csv():
+    strategy = request.form.get("strategy", "GG")
+    file = request.files.get("csv_file")
 
+    if not file:
+        flash("Nessun file caricato.", "error")
+        return redirect(url_for("index", strategy=strategy))
 
-@app.route("/api/trade", methods=["POST"])
-def api_trade():
-    data = request.get_json(silent=True) or {}
-    token = data.get("token") or request.headers.get("X-Tracker-Token")
-    if token != API_TOKEN:
-        return jsonify({"ok": False, "error": "token non valido"}), 401
+    text = file.read().decode("utf-8-sig", errors="ignore")
+    delimiter = detect_delimiter(text)
+    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
 
-    symbol = str(data.get("symbol") or data.get("pair") or "UNKNOWN").upper()
-    side = str(data.get("side") or data.get("signal") or "").upper()
-    if side not in {"BUY", "SELL", "LONG", "SHORT", "MANUAL"}:
-        side = "SIGNAL"
+    imported = 0
+    conn = get_db()
 
-    values = {
-        "created_at": data.get("created_at") or now_iso(),
-        "symbol": symbol,
-        "side": side,
-        "entry": to_float(data.get("entry") or data.get("price")),
-        "exit": to_float(data.get("exit")),
-        "amount": to_float(data.get("amount")),
-        "pnl": to_float(data.get("pnl") or data.get("profit")),
-        "score": to_float(data.get("score")),
-        "status": str(data.get("status") or "open").lower(),
-        "source": str(data.get("source") or "telegram"),
-        "notes": str(data.get("notes") or ""),
-    }
+    for row in reader:
+        home = pick(row, ["squadra casa", "casa", "home"])
+        away = pick(row, ["squadra ospite", "trasferta", "away", "ospite"])
 
-    with db() as conn:
-        cur = conn.execute(
-            """
-            INSERT INTO trades (created_at, symbol, side, entry, exit, amount, pnl, score, status, source, notes)
-            VALUES (:created_at, :symbol, :side, :entry, :exit, :amount, :pnl, :score, :status, :source, :notes)
-            """,
-            values,
-        )
-        conn.commit()
-
-    if values["status"] == "open":
-        send_telegram_message(
-            f"📡 NUOVO TRADE APERTO\n"
-            f"━━━━━━━━━━━━━━\n"
-            f"🪙 Pair: {values['symbol']}\n"
-            f"📌 Side: {values['side']}\n"
-            f"💵 Entry: {values['entry']}\n"
-            f"📊 Score: {values['score']}\n"
-            f"🤖 Fonte: Bot Telegram"
-        )
-
-    return jsonify({"ok": True, "id": cur.lastrowid, "stats": calc_stats()})
-
-
-@app.route("/add", methods=["POST"])
-@require_login
-def add_manual():
-    values = {
-        "created_at": request.form.get("created_at") or now_iso(),
-        "symbol": (request.form.get("symbol") or "MANUAL").upper(),
-        "side": (request.form.get("side") or "MANUAL").upper(),
-        "entry": to_float(request.form.get("entry")),
-        "exit": to_float(request.form.get("exit")),
-        "amount": to_float(request.form.get("amount")),
-        "pnl": to_float(request.form.get("pnl")),
-        "score": to_float(request.form.get("score")),
-        "status": request.form.get("status") or "closed",
-        "source": "manual",
-        "notes": request.form.get("notes") or "",
-    }
-    with db() as conn:
-        conn.execute(
-            """
-            INSERT INTO trades (created_at, symbol, side, entry, exit, amount, pnl, score, status, source, notes)
-            VALUES (:created_at, :symbol, :side, :entry, :exit, :amount, :pnl, :score, :status, :source, :notes)
-            """,
-            values,
-        )
-        conn.commit()
-
-    if str(values["status"]).lower() == "closed":
-        outcome = "🟢 PROFIT" if values["pnl"] > 0 else "🔴 LOSS" if values["pnl"] < 0 else "⚪️ PAREGGIO"
-        send_telegram_message(
-            f"📊 OPERAZIONE MANUALE\n"
-            f"━━━━━━━━━━━━━━\n"
-            f"🪙 Pair: {values['symbol']}\n"
-            f"📌 Side: {values['side']}\n"
-            f"💰 Risultato: {outcome}\n"
-            f"📈 P/L: {values['pnl']} {CURRENCY}\n"
-            f"💵 Entry: {values['entry']}\n"
-            f"🏁 Exit: {values['exit']}"
-        )
-
-    return redirect(url_for("dashboard"))
-
-
-@app.route("/close/<int:trade_id>", methods=["POST"])
-@require_login
-def close_trade(trade_id):
-    exit_price = to_float(request.form.get("exit"))
-    pnl = to_float(request.form.get("pnl"))
-    notes_extra = request.form.get("notes") or ""
-
-    with db() as conn:
-        row = conn.execute("SELECT * FROM trades WHERE id = ?", (trade_id,)).fetchone()
-        if not row:
-            return redirect(url_for("dashboard"))
-
-        old_notes = row["notes"] if row["notes"] else ""
-        notes = old_notes
-        if notes_extra:
-            notes = (old_notes + " | " if old_notes else "") + notes_extra
+        if not home or not away:
+            continue
 
         conn.execute(
-            "UPDATE trades SET exit = ?, pnl = ?, status = 'closed', notes = ? WHERE id = ?",
-            (exit_price, pnl, notes, trade_id),
+            """
+            INSERT INTO matches (
+                strategy, match_date, match_time, championship, home_team, away_team,
+                market, odd, elo_gap, gg_home, gg_away, over_home, over_away, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                strategy,
+                pick(row, ["data", "date"]),
+                pick(row, ["ora", "time"]),
+                pick(row, ["campionato", "league", "lega"]),
+                home,
+                away,
+                strategy,
+                parse_float(odd_for_strategy(row, strategy)),
+                pick(row, ["elo gap", "elo"]),
+                pick(row, ["gg casa"]),
+                pick(row, ["gg trasferta"]),
+                pick(row, ["over casa"]),
+                pick(row, ["over trasferta"]),
+                "",
+            ),
         )
-        conn.commit()
+        imported += 1
 
-    outcome = "🟢 PROFIT" if pnl > 0 else "🔴 LOSS" if pnl < 0 else "⚪️ PAREGGIO"
-    send_telegram_message(
-        f"💰 TRADE CHIUSO\n"
-        f"━━━━━━━━━━━━━━\n"
-        f"🪙 Pair: {row['symbol']}\n"
-        f"📌 Side: {row['side']}\n"
-        f"💵 Entry: {row['entry']}\n"
-        f"🏁 Exit: {exit_price}\n"
-        f"📈 P/L: {pnl} {CURRENCY}\n"
-        f"🏷️ Esito: {outcome}"
-    )
+    conn.commit()
+    conn.close()
 
-    return redirect(url_for("dashboard"))
+    flash(f"{imported} partite importate nella strategia {strategy}.", "success")
+    return redirect(url_for("index", strategy=strategy))
 
 
-@app.route("/delete/<int:trade_id>", methods=["POST"])
-@require_login
-def delete_trade(trade_id):
-    with db() as conn:
-        conn.execute("DELETE FROM trades WHERE id = ?", (trade_id,))
-        conn.commit()
-    return redirect(url_for("dashboard"))
+@app.route("/clear/<strategy>", methods=["POST"])
+@login_required
+def clear_strategy(strategy):
+    conn = get_db()
+    conn.execute("DELETE FROM matches WHERE strategy = ?", (strategy,))
+    conn.commit()
+    conn.close()
+    flash(f"Dati della strategia {strategy} cancellati.", "success")
+    return redirect(url_for("index", strategy=strategy))
+
+
+@app.route("/export/<strategy>")
+@login_required
+def export_strategy(strategy):
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM matches WHERE strategy = ? ORDER BY match_date, match_time", (strategy,)).fetchall()
+    conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow([
+        "Strategia", "Data", "Ora", "Campionato", "Casa", "Trasferta",
+        "Mercato", "Quota", "ELO GAP", "GG CASA", "GG TRASFERTA",
+        "OVER CASA", "OVER TRASFERTA"
+    ])
+
+    for m in rows:
+        writer.writerow([
+            m["strategy"], m["match_date"], m["match_time"], m["championship"],
+            m["home_team"], m["away_team"], m["market"], m["odd"], m["elo_gap"],
+            m["gg_home"], m["gg_away"], m["over_home"], m["over_away"]
+        ])
+
+    mem = io.BytesIO()
+    mem.write(output.getvalue().encode("utf-8-sig"))
+    mem.seek(0)
+
+    return send_file(mem, mimetype="text/csv", as_attachment=True, download_name=f"dati_{strategy.replace(' ', '_')}.csv")
 
 
 if __name__ == "__main__":
     init_db()
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    app.run(debug=True)
+else:
+    init_db()
